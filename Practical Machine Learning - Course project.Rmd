@@ -1,0 +1,134 @@
+---
+title: "Practical Machine Learning - Course project"
+author: "Juliansp@gmail.com"
+date: "01/03/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Project Goal
+
+The goal of this project is to predict the manner in which they did the exercise.
+
+http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har.
+
+This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did.
+You will also use your prediction model to predict 20 different test cases.
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. 
+
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. 
+
+They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har.
+
+Thanks for sharing!!!!!
+
+
+### Data
+
+The training data for this project is available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data is available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+### Load Data
+
+
+```{r}
+traindf <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),header=TRUE)
+dim(traindf)
+testdf <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),header=TRUE)
+dim(testdf)
+```
+
+# Installing Packages and loading Libraries;
+```{r}
+# Installing packages (Run ONCE!!!)
+#install.packages("randomForest")
+#install.packages("e1071")
+
+# Loading libraries
+library(caret)
+library(tidyverse)
+library(randomForest)
+library(e1071)
+```
+
+  
+The next code chunk Sets Seed for reproducibility
+
+```{r}
+set.seed(123)
+```
+
+# Removing variables where N/A values is higher than 95% of observations
+
+```{r}
+traindf <- traindf[, colSums(is.na(traindf)) < nrow(traindf) * 0.95]
+dim(traindf)
+```
+
+# Removing some variables not interesting in;
+*Variables 1-7
++X
++user_name
++raw_timestamp_part_1
++raw_timestamp_part_2
++cvtd_timestamp
++new_window
++num_window
+
+
+```{r echo=FALSE}
+traindf <- traindf[,c(-1:-7)]
+
+# # Review Traindf
+# str(traindf)
+```
+
+<!-- # Train a Cross validation model -->
+<!-- ```{r} -->
+<!-- cross_validation_model <- train(classe ~ ., data = Traindf, method = "cv") -->
+
+<!-- ``` -->
+```{r}
+inTrain <- createDataPartition(traindf$classe, p=0.7, list=F)
+trainData <- traindf[inTrain, ]
+validationData <- traindf[-inTrain, ]
+```
+
+# Train a random forest model
+
+```{r include=FALSE}
+
+# Train a random forest model
+
+control <- trainControl(method="repeatedcv", number =3, repeats = 3)
+
+rf_model <- train(classe ~., data=trainData, method="rf", trControl=control, do.trace = TRUE)#, tuneGrid=tunegrid, )
+print(rf_model)
+
+```
+
+
+```{r}
+# Train a random forest model
+
+control <- trainControl(method="cv", 10)
+
+rf_model_1 <- train(classe ~., data=trainData, method="rf", trControl=control, do.trace = TRUE)#, tuneGrid=tunegrid, )
+print(rf_model_1)
+```
+
+
