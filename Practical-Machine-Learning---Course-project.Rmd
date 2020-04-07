@@ -1,0 +1,211 @@
+---
+title: "Practical Machine Learning - Course project"
+author: "Juliansp@gmail.com"
+date: "04-Apr-2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Project Goal
+
+The goal of this project is to predict the manner in which they did the exercise.
+
+http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har.
+
+This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did.
+You will also use your prediction model to predict 20 different test cases.
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. 
+
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. 
+
+They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har.
+
+Thanks for sharing!!!!!
+
+
+### Data
+
+The training data for this project is available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data is available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+### Load Data
+
+
+```{r}
+traindf <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),header=TRUE)
+dim(traindf)
+testData <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),header=TRUE)
+dim(testData)
+```
+
+# Installing Packages and loading Libraries
+
+* Loading libraries and dependencies
+ + library(caret)
+ + library(tidyverse)
+ + library(randomForest)
+ + library(e1071)
+ + library(scales)
+ 
+```{r echo=FALSE}
+library(caret)
+library(tidyverse)
+library(randomForest)
+library(e1071)
+library(scales)
+```
+
+  
+### The next code chunk Sets Seed for reproducibility
+
+```{r}
+set.seed(123)
+```
+
+### Removing variables where N/A values is higher than 95% of observations
+
+```{r}
+traindf <- traindf[, colSums(is.na(traindf)) < nrow(traindf) * 0.95]
+dim(traindf)
+```
+
+### Removing some variables not interesting in;
+* Variables 1-7
+  + X
+  + user_name
+  + raw_timestamp_part_1
+  + raw_timestamp_part_2
+  + cvtd_timestamp
+  + new_window
+  + num_window
+
+### and all the variables with Nearly Zero Variance
+
+
+```{r}
+traindf <- traindf[,c(-1:-7)]
+# remove variables with Nearly Zero Variance
+nzv_cols <- nearZeroVar(traindf)
+if(length(nzv_cols) > 0) traindf <- traindf[, -nzv_cols]
+
+dim(traindf)
+```
+
+## Creating a validation dataset
+
+```{r}
+inTrain <- createDataPartition(traindf$classe, p=0.7, list=F)
+trainData <- traindf[inTrain, ]
+validationData <- traindf[-inTrain, ]
+remove(traindf)
+```
+
+* So we have 3 datasets
++ testData for testing the prediction model
++ trainData for creating the prediction model
++ validationData to validate the prediction model
+
+
+
+
+
+## Train couple of random forest models using different methods
+
+```{r}
+control <- trainControl(method="repeatedcv", number =3, repeats = 3)
+
+rf_model <- train(classe ~., data=trainData, method="rf", trControl=control)
+print(rf_model)
+```
+
+
+```{r}
+
+control <- trainControl(method="cv", 10)
+
+rf_model_1 <- train(classe ~., data=trainData, method="rf", trControl=control)
+print(rf_model_1)
+
+```
+
+
+## Train a naive bayes model
+
+```{r}
+control <- trainControl(method="cv", 10)
+
+naive_bayes_model <- train(classe ~., data=trainData, method="naive_bayes", trControl=control)
+print(naive_bayes_model)
+
+```
+
+## Train a Stochastic Gradient Boosting
+
+```{r}
+control <- trainControl(method = "cv", 10)
+GBM_model  <- train(classe ~ ., data=trainData, method = "gbm", trControl = control, verbose = FALSE)
+print(GBM_model)
+```
+
+
+
+#### The best model is rf_model_1 (Mtry=27) with an accuracy of 99.24% and kappa over .8 (0.9904), that is a random forest with 10 folds,lets have a look in deep about this model and also using this model to predict against validation dataset;
+
+```{r}
+validation <- predict(rf_model_1, newdata = validationData)
+confusionMatrix(validation, validationData$classe)
+
+```
+
+#### We can see after validating the model against the validation dataset that the accuracy is 99.51%, that is pretty close with our prediction, in fact is even better (99.24%)
+
+```{r}
+# create a function to plot the confusion matrix in a clearer way
+
+
+ggplotConfusionMatrix <- function(df){
+  mytitle <- paste("Accuracy", label_percent(accuracy = 0.001)(df$overall[1]),
+                   "Kappa", label_percent(accuracy = 0.001)(df$overall[2]))
+  mytitle2 <- "Model Eficiency - Random Forest - 10 folds cross validation"
+  p <-
+    ggplot(data = as.data.frame(df$table) ,
+           aes(x = Reference, y = Prediction)) +
+    geom_tile(aes(fill = log(Freq)), colour = "white") +
+    scale_fill_gradient(low = "white", high = "steelblue") +
+    geom_text(aes(x = Reference, y = Prediction, label = Freq)) +
+    theme(legend.position = "none") +
+    ggtitle(mytitle2, mytitle)
+  return(p)
+}
+
+
+
+plot(rf_model_1)
+conf_Matrix <- (confusionMatrix(validation, validationData$classe))
+ggplotConfusionMatrix(conf_Matrix)
+
+```
+
+
+## Applying the model to testData
+
+```{r}
+predict.testData <- predict(rf_model_1, testData)
+print(predict.testData)
+```
+
+                                              
